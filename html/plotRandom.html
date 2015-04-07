@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Random Scatter</title>
+    <title>D3 Examples</title>
     <script type="text/javascript" src="../js/d3/d3.v3.js"></script>
 </head>
 
@@ -10,21 +10,18 @@
 
 # Plotting Random Normal Data
 
-Here I have modified the previous script that drew a scatterplot from pre-defined data to instead plot randomly sampled data.
+This is an initial simple demonstration in visualizing bivariate normal data.  For each data point the coordinates are assigned by drawing two independent random samples from a standard normal distribution.
 
-A relevant example from Mike Bostock is available [here](http://bl.ocks.org/mbostock/3680957).
+This code borrows heavily from Mike Bostock's example [here](http://bl.ocks.org/mbostock/3680957).
 
-</xmp>
+<div id="d3Code"></div>
 
-<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+## D3 Code
 
-<script type="text/javascript">
-    "use strict";
-    /*global d3:false */
-    var w = 960;
-    var h =960;
+    var w = 500;
+    var h = 500;
     var std = 1;
-    var numPoints = 2000;
+    var numPoints = 1000;
 
     //Generate random data
     var randomX = d3.random.normal(0, std);
@@ -47,7 +44,7 @@ A relevant example from Mike Bostock is available [here](http://bl.ocks.org/mbos
         .range([0, h]);
 
     //Create SVG element
-    var svg = d3.select("div#content").append("svg")
+    var svg = d3.select("div#d3Code").append("svg")
                 .attr("style", "outline: thin solid black;")
                 .attr("width", w)
                 .attr("height", h);
@@ -64,7 +61,56 @@ A relevant example from Mike Bostock is available [here](http://bl.ocks.org/mbos
             return yScale(d[1]);
         })
         .attr("r", 2.5);
+</xmp>
 
+<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+    "use strict";
+    /*global d3:false */
+    var w = 500;
+    var h = 500;
+    var std = 1;
+    var numPoints = 1000;
+
+    //Generate random data
+    var randomX = d3.random.normal(0, std);
+    var randomY = d3.random.normal(0, std);
+
+    var dataset = d3.range(numPoints).map(function() {
+        return [
+            randomX(),
+            randomY()
+        ];
+    });
+
+    //Define scale
+    var xScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, w]);
+
+    var yScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, h]);
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Draw data on svg element
+    svg.selectAll("circle")
+        .data(dataset)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {
+            return xScale(d[0]);
+        })
+        .attr("cy", function(d) {
+            return yScale(d[1]);
+        })
+        .attr("r", 2.5);
 </script>
 
 
