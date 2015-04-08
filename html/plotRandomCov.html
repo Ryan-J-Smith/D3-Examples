@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>D3 Examples</title>
+    <script type="text/javascript" src="../js/d3/d3.v3.js"></script>
+</head>
+
+<xmp theme="cerulean" style="display;none;">
+
+# Plotting Random Normal Data With Non-Diagonal Covariance
+
+In a prior example I demonstrated plotting bivariate normal data under the assumption of an identity covariance matrix.
+
+D3 allows simple generation of samples from a normal distribution using `d3.random.normal(mean, std)`.  We can use this function to easily generate multivariate gaussian data with a diagonal covariance matrix.  However, we may occasionally want non-diagonal covariance.  To achieve this we can [generate samples from a standard normal and transform them](http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Affine_transformation).
+
+### Affine Transformation
+
+Following the notation from wikipedia if we have samples x, from a normal distribution $ x \sim \mathcal{N}(\mu,\Sigma) $ and we apply an affine transformation $y = c + Bx$ then the resulting values $y$ will be distributed:
+
+$$ y \sim \mathcal{N}(c + B\mu, B \Sigma B^{\rm T}) $$
+
+If we generate samples from the standard normal $x \sim \mathcal{N}(0,1)$ then apply a transformation $y = c + Bx$ we will be left with samples distributed according to:
+
+$$y \sim \mathcal{N}(c, B B^{\rm T}) $$
+
+Thus, we have a means to generate samples from any particular multivariate normal distribution with mean, $\hat{\mu}$, and covariance $\hat{\Sigma}$.
+
+### Cholesky Decomposition
+
+One immediate problem is that the transformation doesn't involve multiplication by $\hat{\Sigma}$ directly.  Instead we need to calculate by $B$ where:
+
+$$ B B^{\rm T} = \Sigma $$
+
+In general, we would solve this problem using [*Cholesky decomposition*](http://en.wikipedia.org/wiki/Cholesky_decomposition) which is just a fancy way of finding a particular square root decomposition of a matrix.
+
+While I'm sure there is a handy math library out there we could load to do this efficiently, since I will only be working with 2x2 matrices here I will instead borrow the same line of thinking exhibited in [this blog post](http://metamerist.blogspot.com/2008/03/googlaziness-cholesky-2x2.html).
+
+To summarize, we can set up the equation as follows:
+
+$$B B^{\rm T} = \Sigma $$
+
+$$\begin{bmatrix} a & 0 \\\\ b & c \end{bmatrix}
+\begin{bmatrix} a & b \\\\ 0 & c \end{bmatrix} = 
+\begin{bmatrix} a^2 & ab \\\\ ab & (b^2 + c^2) \end{bmatrix}$$
+
+## Demo
+
+In the following example, I will generate random samples from a distribution $\mathcal{N}(\mu,\Sigma)$ with: 
+$$\mu = \begin{bmatrix} 0, 0 \end{bmatrix}$$
+$$\Sigma = \begin{bmatrix} 3 & -2 \\\\ -2 & 3 \end{bmatrix}$$.
+
+<div id="d3Code"></div>
+
+## D3 Code
+
+    "use strict";
+    /*global d3:false */
+    var w = 500;
+    var h = 500;
+    var std = 1;
+    var numPoints = 1000;
+
+    // Define 
+    var mu = [0, 0];
+    var sig =   [[3, -2],
+                [-2, 2]];
+
+    //Perform cholesky decomposition
+    var sqrtSig = chol2d(sig);
+
+    //Generate random data
+    var dataset = d3.range(numPoints).map(function() {
+        return sampleBivariateNormal(mu, sqrtSig);
+    });
+
+    //var dataset = sampleBivariateNormal(mu, sqrtSig);
+
+    //Define scale
+    var xScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, w]);
+
+    var yScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, h]);
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Draw data on svg element
+    svg.selectAll("circle")
+        .data(dataset)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {
+            return xScale(d[0]);
+        })
+        .attr("cy", function(d) {
+            return yScale(d[1]);
+        })
+        .attr("r", 2.5);
+
+    //Calculate Cholesky decomposition of sigma
+    function chol2d(sig){
+        var a,b,c;
+        a = Math.sqrt(sig[0][0]);
+        b = sig[0][1]/a;
+        c = Math.sqrt(sig[1][1]-b*b);        
+
+        return [
+                [a, 0],
+                [b, c]
+        ];
+    }
+
+    //Apply transform
+    function sampleBivariateNormal(mu, sqrtSig){
+        var stdNorm = d3.random.normal(0, 1);
+        var x = [stdNorm(), stdNorm()];
+        var y = [0, 0];
+
+        y[0] = mu[0] + sqrtSig[0][0]*x[0] + sqrtSig[0][1]*x[1];
+        y[1] = mu[1] + sqrtSig[1][0]*x[0] + sqrtSig[1][1]*x[1];
+
+        return [y[0], y[1]];
+    }
+
+
+---
+
+</xmp>
+
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ 
+        tex2jax: { 
+            inlineMath: [["$","$"]], 
+            displayMath: [["$$", "$$"]], 
+            processEscapes: true
+        },
+        displayAlign: "center"
+    });
+</script>
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+    "use strict";
+    /*global d3:false */
+    var w = 500;
+    var h = 500;
+    var std = 1;
+    var numPoints = 1000;
+
+    // Define 
+    var mu = [0, 0];
+    var sig =   [[3, -2],
+                [-2, 2]];
+
+    //Perform cholesky decomposition
+    var sqrtSig = chol2d(sig);
+
+    //Generate random data
+    var dataset = d3.range(numPoints).map(function() {
+        return sampleBivariateNormal(mu, sqrtSig);
+    });
+
+    //var dataset = sampleBivariateNormal(mu, sqrtSig);
+
+    //Define scale
+    var xScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, w]);
+
+    var yScale = d3.scale.linear()
+        .domain([-10*std, 10*std])
+        .range([0, h]);
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Draw data on svg element
+    svg.selectAll("circle")
+        .data(dataset)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {
+            return xScale(d[0]);
+        })
+        .attr("cy", function(d) {
+            return yScale(d[1]);
+        })
+        .attr("r", 2.5);
+
+    //Calculate Cholesky decomposition of sigma
+    function chol2d(sig){
+        var a,b,c;
+        a = Math.sqrt(sig[0][0]);
+        b = sig[0][1]/a;
+        c = Math.sqrt(sig[1][1]-b*b);        
+
+        return [
+                [a, 0],
+                [b, c]
+        ];
+    }
+
+    //Apply transform
+    function sampleBivariateNormal(mu, sqrtSig){
+        var stdNorm = d3.random.normal(0, 1);
+        var x = [stdNorm(), stdNorm()];
+        var y = [0, 0];
+
+        y[0] = mu[0] + sqrtSig[0][0]*x[0] + sqrtSig[0][1]*x[1];
+        y[1] = mu[1] + sqrtSig[1][0]*x[0] + sqrtSig[1][1]*x[1];
+
+        return [y[0], y[1]];
+    }
+
+</script>
+
+</html>
