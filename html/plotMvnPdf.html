@@ -8,45 +8,37 @@
 
 <xmp theme="cerulean" style="display;none;">
 
-# Plotting Random Normal Data With Non-Diagonal Covariance
+# Calculating Probability of Bivariate Normal Data
 
-In a prior example I demonstrated plotting bivariate normal data under the assumption of an identity covariance matrix.
+The goal of this demo is to generate data from a bivariate normal distribution, calculate the probability density function of each point under the generating distribution and plot points color-coded according to their likelihood under the distribution.
 
-D3 allows simple generation of samples from a normal distribution using `d3.random.normal(mean, std)`.  We can use this function to easily generate multivariate gaussian data with a diagonal covariance matrix.  However, we may occasionally want non-diagonal covariance.  To achieve this we can [generate samples from a standard normal and transform them](http://en.wikipedia.org/wiki/Multivariate_normal_distribution#Affine_transformation).
+### Gaussian PDF
 
-### Affine Transformation
+The PDF of a point $x$ under a distribution $\mathcal{N}(\mu,\Sigma)$ is:
 
-Following the notation from wikipedia if we have samples x, from a normal distribution $ x \sim \mathcal{N}(\mu,\Sigma) $ and we apply an affine transformation $y = c + Bx$ then the resulting values $y$ will be distributed:
+$$ f(x) = 
+    (2 \pi)^{-k/2} |\Sigma|^{-1/2}
+    \exp{ \left[
+    - \dfrac{1}{2} (x-\mu)^{\rm T} \Sigma^{-1} (x-\mu)
+    \right]} $$
 
-$$ y \sim \mathcal{N}(c + B\mu, B \Sigma B^{\rm T}) $$
+Again, in the absence of built-in matrix operations we will need to add in some functions to evaluate the inverse and determinant of a 2x2 matrix.
 
-If we generate samples from the standard normal $x \sim \mathcal{N}(0,1)$ then apply a transformation $y = c + Bx$ we will be left with samples distributed according to:
+##### Determinant of 2D Matrix
 
-$$y \sim \mathcal{N}(c, B B^{\rm T}) $$
+Let $ A = \begin{bmatrix} a & b \\\\ c & d \end{bmatrix} $ then $ |A| = ad - bc $
 
-Thus, we have a means to generate samples from any particular multivariate normal distribution with mean, $\hat{\mu}$, and covariance $\hat{\Sigma}$.
+##### Inverse of 2D Matrix
 
-### Cholesky Decomposition
+Let $ A = \begin{bmatrix} a & b \\\\ c & d \end{bmatrix} $ then $ A^{-1} = \dfrac{1}{ad-bc} \begin{bmatrix} d & -b \\\\ -c & a \end{bmatrix} $
 
-One immediate problem is that the transformation doesn't involve multiplication by $\hat{\Sigma}$ directly.  Instead we need to calculate by $B$ where:
 
-$$ B B^{\rm T} = \Sigma $$
-
-In general, we would solve this problem using [*Cholesky decomposition*](http://en.wikipedia.org/wiki/Cholesky_decomposition) which is just a fancy way of finding a particular square root decomposition of a matrix.
-
-While I'm sure there is a handy math library out there we could load to do this efficiently, since I will only be working with 2x2 matrices here I will instead borrow the same line of thinking exhibited in [this blog post](http://metamerist.blogspot.com/2008/03/googlaziness-cholesky-2x2.html).
-
-To summarize, we can set up the equation as follows:
-
-$$B B^{\rm T} = \Sigma $$
-
-$$\begin{bmatrix} a & 0 \\\\ b & c \end{bmatrix}
-\begin{bmatrix} a & b \\\\ 0 & c \end{bmatrix} = 
-\begin{bmatrix} a^2 & ab \\\\ ab & (b^2 + c^2) \end{bmatrix}$$
 
 ## Demo
 
-In the following example, I will generate random samples from a distribution $\mathcal{N}(\mu,\Sigma)$ with: 
+In this demo we will sample from a bivariate normal distribution, calculate the probability of each point and color each point according to its probability.  More intense colors correspond to higher probability values.
+
+The data is generated from a distribution $\mathcal{N}(\mu,\Sigma)$ with: 
 $$\mu = \begin{bmatrix} 0, 0 \end{bmatrix}$$
 $$\Sigma = \begin{bmatrix} 3 & -2 \\\\ -2 & 2 \end{bmatrix}$$.
 
@@ -69,7 +61,7 @@ $$\Sigma = \begin{bmatrix} 3 & -2 \\\\ -2 & 2 \end{bmatrix}$$.
                 .attr("width", w)
                 .attr("height", h);
 
-    //Define plot scale
+    //Define plot scales
     var xScale = d3.scale.linear()
         .domain([-10, 10])
         .range([0, w]);
@@ -81,11 +73,25 @@ $$\Sigma = \begin{bmatrix} 3 & -2 \\\\ -2 & 2 \end{bmatrix}$$.
     //Perform cholesky decomposition
     var sqrtSig = chol2d(sig);
 
+    // Calculate inverse of sigma
+    var invSig = inv2DMat(sig);
+
+    // Calculate normalization term for pdf
+    var z = normalize2dNorm(sig);
+
     //Generate random data
     var dataset = d3.range(numPoints).map(function() {
         return sampleBivariateNormal(mu, sqrtSig);
     });
 
+    //Calculate prob of each data point
+    for (var i = 0; i < dataset.length; i++) {
+        dataset[i].p = pdf2DNorm(dataset[i], mu, z, invSig);
+    }
+
+    var colorScale = d3.scale.linear()
+        .domain([0, z])
+        .range(["white","red"]);
 
     //Draw data on svg element
     svg.selectAll("circle")
@@ -98,7 +104,35 @@ $$\Sigma = \begin{bmatrix} 3 & -2 \\\\ -2 & 2 \end{bmatrix}$$.
         .attr("cy", function(d) {
             return yScale(d[1]);
         })
-        .attr("r", 2.5);
+        .attr("r", 2.5)
+        .style("fill", function(d) {
+            return colorScale(d.p);
+        });
+
+    //Calculate pdf of a datapoint
+    function pdf2DNorm(x, mu, z, invSig) {
+        var dx = [x[0]-mu[0], x[1]-mu[1]];
+        var e = invSig[0][0]*dx[0]*dx[0] + 2*invSig[0][1]*dx[0]*dx[1] + invSig[1][1]*dx[1]*dx[1];
+        return Math.exp(-0.5*e)*z;
+    }
+
+    //Normalization term for 2D Gaussian
+    function normalize2dNorm(sig){
+        var detSig = sig[0][0]*sig[1][1] - sig[0][1]*sig[1][0];
+        return 2*Math.PI*Math.sqrt(detSig);
+    }
+
+    //Inverse of 2D Matrix
+    function inv2DMat(A){
+        var detA = A[0][0]*A[1][1] - A[0][1]*A[1][0]
+        var a = A[1][1]/detA;
+        var b = -A[0][1]/detA;
+        var c = -A[1][0]/detA;
+        var d = A[0][0]/detA;
+        
+        return [[a, b],
+                [c, d]];
+    }
 
     //2-D Cholesky decomposition of sigma
     function chol2d(sig){
@@ -165,7 +199,7 @@ By [Ryan J. Smith](http://www.ryanjsmith.me)
                 .attr("width", w)
                 .attr("height", h);
 
-    //Define plot scale
+    //Define plot scales
     var xScale = d3.scale.linear()
         .domain([-10, 10])
         .range([0, w]);
@@ -177,11 +211,25 @@ By [Ryan J. Smith](http://www.ryanjsmith.me)
     //Perform cholesky decomposition
     var sqrtSig = chol2d(sig);
 
+    // Calculate inverse of sigma
+    var invSig = inv2DMat(sig);
+
+    // Calculate normalization term for pdf
+    var z = normalize2dNorm(sig);
+
     //Generate random data
     var dataset = d3.range(numPoints).map(function() {
         return sampleBivariateNormal(mu, sqrtSig);
     });
 
+    //Calculate prob of each data point
+    for (var i = 0; i < dataset.length; i++) {
+        dataset[i].p = pdf2DNorm(dataset[i], mu, z, invSig);
+    }
+
+    var colorScale = d3.scale.linear()
+        .domain([0, z])
+        .range(["white","red"]);
 
     //Draw data on svg element
     svg.selectAll("circle")
@@ -194,7 +242,35 @@ By [Ryan J. Smith](http://www.ryanjsmith.me)
         .attr("cy", function(d) {
             return yScale(d[1]);
         })
-        .attr("r", 2.5);
+        .attr("r", 2.5)
+        .style("fill", function(d) {
+            return colorScale(d.p);
+        });
+
+    //Calculate pdf of a datapoint
+    function pdf2DNorm(x, mu, z, invSig) {
+        var dx = [x[0]-mu[0], x[1]-mu[1]];
+        var e = invSig[0][0]*dx[0]*dx[0] + 2*invSig[0][1]*dx[0]*dx[1] + invSig[1][1]*dx[1]*dx[1];
+        return Math.exp(-0.5*e)*z;
+    }
+
+    //Normalization term for 2D Gaussian
+    function normalize2dNorm(sig){
+        var detSig = sig[0][0]*sig[1][1] - sig[0][1]*sig[1][0];
+        return 2*Math.PI*Math.sqrt(detSig);
+    }
+
+    //Inverse of 2D Matrix
+    function inv2DMat(A){
+        var detA = A[0][0]*A[1][1] - A[0][1]*A[1][0]
+        var a = A[1][1]/detA;
+        var b = -A[0][1]/detA;
+        var c = -A[1][0]/detA;
+        var d = A[0][0]/detA;
+        
+        return [[a, b],
+                [c, d]];
+    }
 
     //2-D Cholesky decomposition of sigma
     function chol2d(sig){
