@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>D3 Examples</title>
+    <script type="text/javascript" src="../js/d3/d3.v3.js"></script>
+</head>
+
+<xmp theme="cerulean" style="display;none;">
+
+# Drawing Axes and Vectors
+
+This post will cover drawing a basic set of axes along with two dimensional vectors on those axes.
+
+As a basis, I will be working off of [Scott Murray's excellent tutorials on D3](http://alignedleft.com/tutorials/d3).
+
+## Demo
+
+In this demo we will create a class for generating a bivariate normal distribution, then use this to define two unique distributions.  We will then sample from those distributions and plot the samples.
+
+<div id="d3Code"></div>
+
+### Setting up the figure
+
+    var w = 500;
+    var h = 500;
+    var padding = 50;
+    var yMax = 10, yMin = -10;
+    var xMax = 10, xMin = -10;
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([xMin, xMax])
+        .range([padding, w-padding]);
+
+    var yScale = d3.scale.linear()
+        .domain([yMax, yMin])
+        .range([padding, h-padding]);
+
+### Drawing some vectors
+
+Here we will treat vectors as line segments emanating from the origin.  The `line` object in SVG requires for attributes: `x1, y1, x2, y2` that denote the coordinates of the start and end of the line.  Much in the same way we drew circles in other examples, here we will define an initial dataset of values corresponding to `[x1, y1]`. Since all our vectors will start at the origin, we will assign values of `0` to `x1` and `y1`
+
+    //Draw data on svg element
+    var dataset = [[5,5], [4,-8], [-7,3]];
+
+    svg.selectAll("line")
+        .data(dataset)
+        .enter()
+        .append("line")
+        .attr("x1", function(d) {
+            return xScale(0)
+        })
+        .attr("y1", function(d) {
+            return yScale(0)
+        })
+        .attr("x2", function(d) {
+            return xScale(d[0])
+        })
+        .attr("y2", function(d) {
+            return yScale(d[1])
+        })
+        .attr("stroke-width",2)
+        .attr("stroke","red");
+   
+
+### Creating the axes
+
+We're manually setting the values of `.tickValues()` here to avoid issues with tick labels being intersected at the origin.
+    
+    //Define tick values   
+    var tickVals = [-10, -8, -6, -4, -2, 2, 4, 6, 8, 10];
+
+    //Create x axis
+    var xAxis = d3.svg.axis()
+                  .scale(xScale)
+                  .orient("bottom")
+                  .tickValues(tickVals);
+
+    //Create y axis
+    var yAxis = d3.svg.axis()
+                  .scale(yScale)
+                  .orient("left")
+                  .tickValues(tickVals);
+
+### Drawing the axes
+
+The following code adds the axes to the svg object and assigns them to the class `axis`.  By default the axes are added to the edges of the SVG element, so the `transform` and `translate` atrributes are necessary to shift them into position. The `call()` command results in the axes actually being drawn.  Scott Murray has a [good explanation](http://alignedleft.com/tutorials/d3/axes) of what's going on there.
+
+    //Add axes to svg
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(0," + (padding + (h-2*padding)/2) + ")")
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(" + (padding + (w-2*padding)/2) + ",0)")
+        .call(yAxis);
+
+
+### Styling the axes
+
+In other examples I have viewed, the axes are typically styled in a style sheet.  Here we will do it differently by using D3's `selectAll` to change the style.
+
+    //Style axes
+    svg.selectAll(".axis path, .axis line")
+        .style("fill", "none")
+        .style("stroke","black")
+        .style("shape-rendering","crispEdges");
+
+    svg.selectAll(".axis text")
+        .style("font-family", "sans-serif")
+        .style("font-size", "11px");
+
+---
+
+<div class="container">
+    <div class="row">
+        <span class="pull-left">
+        <a class="btn btn-primary" href="http://Ryan-J-Smith.github.io/D3-Examples">Back to Examples</a></span>
+        <span class="pull-right">By [Ryan J. Smith](http://www.ryanjsmith.me), 2015</span>
+    </div>
+</div>
+
+</xmp>
+
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ 
+        tex2jax: { 
+            inlineMath: [["$","$"]], 
+            displayMath: [["$$", "$$"]], 
+            processEscapes: true
+        },
+        displayAlign: "center"
+    });
+</script>
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+
+    "use strict";
+    /*global d3:false */
+    var w = 500;
+    var h = 500;
+    var padding = 50;
+    var yMax = 10, yMin = -10;
+    var xMax = 10, xMin = -10;
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([xMin, xMax])
+        .range([padding, w-padding]);
+
+    var yScale = d3.scale.linear()
+        .domain([yMax, yMin])
+        .range([padding, h-padding]);
+
+    //Draw data on svg element
+    var dataset = [[5,5], [4,-8], [-7,3]];
+
+    svg.selectAll("line")
+        .data(dataset)
+        .enter()
+        .append("line")
+        .attr("x1", function(d) {
+            return xScale(0)
+        })
+        .attr("y1", function(d) {
+            return yScale(0)
+        })
+        .attr("x2", function(d) {
+            return xScale(d[0])
+        })
+        .attr("y2", function(d) {
+            return yScale(d[1])
+        })
+        .attr("stroke-width",2)
+        .attr("stroke","red");
+
+    //Define tick values   
+    var tickVals = [-10, -8, -6, -4, -2, 2, 4, 6, 8, 10];
+
+    //Create x axis
+    var xAxis = d3.svg.axis()
+                  .scale(xScale)
+                  .orient("bottom")
+                  .tickValues(tickVals);
+
+    //Create y axis
+    var yAxis = d3.svg.axis()
+                  .scale(yScale)
+                  .orient("left")
+                  .tickValues(tickVals);
+
+   //Add axes to svg
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(0," + (padding + (h-2*padding)/2) + ")")
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(" + (padding + (w-2*padding)/2) + ",0)")
+        .call(yAxis);
+
+    //Style axes
+    svg.selectAll(".axis path, .axis line")
+        .style("fill", "none")
+        .style("stroke","black")
+        .style("shape-rendering","crispEdges");
+
+    svg.selectAll(".axis text")
+        .style("font-family", "sans-serif")
+        .style("font-size", "11px");
+
+
+</script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-61736441-1', 'auto');
+  ga('send', 'pageview');
+</script>
+
+</html>
