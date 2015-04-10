@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>D3 Examples</title>
+    <script type="text/javascript" src="../js/d3/d3.v3.js"></script>
+</head>
+
+<xmp theme="cerulean" style="display;none;">
+
+# Creating a Bivariate Normal Distribution Class
+
+The goal of this demo is to define a prototype for multivariate normal distribution objects.  This will allow us to manage multiple distributions easily.
+
+### Prototype Structure
+
+A multivariate Gaussian distribution is completely parameterized by a mean vector and a covariance matrix.
+
+We will want to include methods for sampling from the distribution as well as evaluating the probability of a point under the distribution.
+
+Mostly as a note to myself, I will mention that [class declarations](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes) in JavaScript are not hoisted.  This means that I will have to declare the class before I can use it in code.
+
+## Demo
+
+In this demo we will create a class for generating a bivariate normal distribution, then use this to define two unique distributions.  We will then sample from those distributions and plot the samples.
+
+<div id="d3Code"></div>
+
+## Creating the Prototype for Bivariate Normal Distributions
+
+#### Initial Declaration
+
+In the initial declaration we will store the information about the mean and covariance as attributes.  Additionally there are some values that we will calculate when the function is initially declared to save time later.  Specifically: the cholesky decomposition of the covariance matrix, the inverse of the covariance matrix, and the normalization term (z)for the pdf equation.
+
+    //Define prototype for bivariate normal objects
+    function mvnDist(mu, sig) {
+        this.mu = mu;
+        this.sig = sig;
+        this.sqrtSig = chol2d(sig);
+        this.invSig = inv2DMat(sig);
+        this.z = normalize2DNorm(sig);
+
+        //Normalization term
+        function normalize2DNorm(sig){
+            var detSig;
+            detSig = sig[0][0]*sig[1][1] - sig[0][1]*sig[1][0];
+            return 2*Math.PI*Math.sqrt(detSig);
+        }
+
+        //Inverse of 2D Matrix
+        function inv2DMat(A){
+            var detA, a, b, c, d;
+            detA = A[0][0]*A[1][1] - A[0][1]*A[1][0];
+            a = A[1][1]/detA;
+            b = -A[0][1]/detA;
+            c = -A[1][0]/detA;
+            d = A[0][0]/detA;          
+            return [[a, b],
+                    [c, d]];
+        }
+
+        //2-D Cholesky decomposition
+        function chol2d(A){
+            var a,b,c;
+            a = Math.sqrt(A[0][0]);
+            b = A[0][1]/a;
+            c = Math.sqrt(A[1][1]-b*b);        
+            return [[a, 0],
+                    [b, c]];
+        }
+    }
+    
+#### Adding Methods
+
+After the initial declarations we will add methods to the protoype to enable sampling from the distribution as well as evaluating the probability of any point in 2D space under the distribution.
+
+    // Add pdf method
+    mvnDist.prototype.pdf = function(x){
+        var dx, e;
+        dx = [x[0]-this.mu[0], x[1]-this.mu[1]];
+        e = this.invSig[0][0]*dx[0]*dx[0] + 2*this.invSig[0][1]*dx[0]*dx[1] + this.invSig[1][1]*dx[1]*dx[1];
+        return Math.exp(-0.5*e)*this.z;
+    };
+
+    // Add sample method
+    mvnDist.prototype.sample = function(){
+        var stdNorm, x, y;
+        stdNorm = d3.random.normal(0, 1);
+        x = [stdNorm(), stdNorm()];
+        y = [0, 0];
+        y[0] = this.mu[0] + this.sqrtSig[0][0]*x[0] + this.sqrtSig[0][1]*x[1];
+        y[1] = this.mu[1] + this.sqrtSig[1][0]*x[0] + this.sqrtSig[1][1]*x[1];
+        return [y[0], y[1]];
+    };
+
+## Visualization Code
+
+    var w = 500;
+    var h = 500;
+    var numPoints = 5000;
+    var dataset = [];
+
+    // Define parameters for first distribution
+    var mu =    [ 
+                [-2,-2],
+                [ 3, 3]
+                ];
+
+    var sig =   [
+                [[3,-2],[-2,2]],
+                [[3, 2],[ 2,2]]
+                ];
+
+    var plotColors = ["red","blue"];
+
+    var myDist = [];
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([-10,  10])
+        .range([0, w]);
+
+    var yScale = d3.scale.linear()
+        .domain([-10, 10])
+        .range([0, h]);
+
+    for (var i = 0; i < mu.length; i++) {     
+        //Create distribution objects
+        myDist[i] = new mvnDist(mu[i], sig[i]);
+
+        //Generate random data
+        var dataVals = d3.range(numPoints).map(function() {
+            return myDist[i].sample();
+        });
+
+        //Add samples to dataset
+        dataset = dataset.concat(dataVals);
+    };
+
+    //Draw data on svg element
+    svg.selectAll("circle")
+        .data(dataset)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {
+            return xScale(d[0]);
+        })
+        .attr("cy", function(d) {
+            return yScale(d[1]);
+        })
+        .attr("r", 1)
+        .style("fill", "black")
+        .style("opacity", 0.5);
+
+---
+
+By [Ryan J. Smith](http://www.ryanjsmith.me)
+
+</xmp>
+
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ 
+        tex2jax: { 
+            inlineMath: [["$","$"]], 
+            displayMath: [["$$", "$$"]], 
+            processEscapes: true
+        },
+        displayAlign: "center"
+    });
+</script>
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+    "use strict";
+    /*global d3:false */
+
+    //Define prototype for bivariate normal objects
+    function mvnDist(mu, sig) {
+        this.mu = mu;
+        this.sig = sig;
+        this.sqrtSig = chol2d(sig);
+        this.invSig = inv2DMat(sig);
+        this.z = normalize2DNorm(sig);
+
+        //Normalization term
+        function normalize2DNorm(sig){
+            var detSig;
+            detSig = sig[0][0]*sig[1][1] - sig[0][1]*sig[1][0];
+            return 2*Math.PI*Math.sqrt(detSig);
+        }
+
+        //Inverse of 2D Matrix
+        function inv2DMat(A){
+            var detA, a, b, c, d;
+            detA = A[0][0]*A[1][1] - A[0][1]*A[1][0];
+            a = A[1][1]/detA;
+            b = -A[0][1]/detA;
+            c = -A[1][0]/detA;
+            d = A[0][0]/detA;          
+            return [[a, b],
+                    [c, d]];
+        }
+
+        //2-D Cholesky decomposition
+        function chol2d(A){
+            var a,b,c;
+            a = Math.sqrt(A[0][0]);
+            b = A[0][1]/a;
+            c = Math.sqrt(A[1][1]-b*b);        
+            return [[a, 0],
+                    [b, c]];
+        }
+    }
+    
+    // Add pdf method
+    mvnDist.prototype.pdf = function(x){
+        var dx, e;
+        dx = [x[0]-this.mu[0], x[1]-this.mu[1]];
+        e = this.invSig[0][0]*dx[0]*dx[0] + 2*this.invSig[0][1]*dx[0]*dx[1] + this.invSig[1][1]*dx[1]*dx[1];
+        return Math.exp(-0.5*e)*this.z;
+    };
+
+    // Add sample method
+    mvnDist.prototype.sample = function(){
+        var stdNorm, x, y;
+        stdNorm = d3.random.normal(0, 1);
+        x = [stdNorm(), stdNorm()];
+        y = [0, 0];
+        y[0] = this.mu[0] + this.sqrtSig[0][0]*x[0] + this.sqrtSig[0][1]*x[1];
+        y[1] = this.mu[1] + this.sqrtSig[1][0]*x[0] + this.sqrtSig[1][1]*x[1];
+        return [y[0], y[1]];
+    };
+
+    var w = 500;
+    var h = 500;
+    var numPoints = 5000;
+    var dataset = [];
+
+    // Define parameters for first distribution
+    var mu =    [ 
+                [-2,-2],
+                [ 3, 3]
+                ];
+
+    var sig =   [
+                [[3,-2],[-2,2]],
+                [[3, 2],[ 2,2]]
+                ];
+
+    var plotColors = ["red","blue"];
+
+    var myDist = [];
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([-10,  10])
+        .range([0, w]);
+
+    var yScale = d3.scale.linear()
+        .domain([-10, 10])
+        .range([0, h]);
+
+    for (var i = 0; i < mu.length; i++) {     
+        //Create distribution objects
+        myDist[i] = new mvnDist(mu[i], sig[i]);
+
+        //Generate random data
+        var dataVals = d3.range(numPoints).map(function() {
+            return myDist[i].sample();
+        });
+
+        //Add samples to dataset
+        dataset = dataset.concat(dataVals);
+    };
+
+    //Draw data on svg element
+    svg.selectAll("circle")
+        .data(dataset)
+        .enter()
+        .append("circle")
+        .attr("cx", function(d) {
+            return xScale(d[0]);
+        })
+        .attr("cy", function(d) {
+            return yScale(d[1]);
+        })
+        .attr("r", 1)
+        .style("fill", "black")
+        .style("opacity", 0.5);
+   
+
+</script>
+</html>
