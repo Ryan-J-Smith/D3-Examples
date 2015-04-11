@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>D3 Examples</title>
+    <script type="text/javascript" src="../js/d3/d3.v3.js"></script>
+</head>
+
+<xmp theme="cerulean" style="display;none;">
+
+# Basic User Interaction and Vector Mapping
+
+One of the strengths of D3 is interactivity. In a previous post we looked at [drawing vectors and a set of axes](axesAndVectors.html). Now we will add some useful interactivity through the addition of a button. This demo will look at the effects of applying a particular 2x2 [transformation matrix](http://en.wikipedia.org/wiki/Transformation_matrix) to many different vectors simultaneously.  As a result, the user will get a better understanding of what this matrix does.
+
+## Demo
+
+*Click the button to apply a linear transformation matrix to the vectors below.  Click the button a second time to reset the vectors.*
+
+The transformation will alter the direction that the vectors are pointing, but each vector maintains its original color.  As a result we are better able to see how this particular transformation matrix scales and rotates vectors in each portion of 2D space.
+
+In this particular demo, the matrix being applied is:
+
+$$ M = \begin{bmatrix} 1 & 2 \\\\ -2 & 1 \end{bmatrix} $$
+
+This matrix has both apparent scaling effects as well as rotational effects.
+
+<div class="btn-group">
+	<button class="btn-primary" id ="d3Button">Transform</button>
+</div>
+
+<div id="d3Code"></div>
+
+### Sampling many vectors
+
+Since we want this visualization to demonstrate the affect of applying a transformation matrix to a vector, we want to sample vectors pointing in many different directions. One way to do this is by sampling `numPts` evenly spaced points from the circumference of a circle with radius `mag`.  The code I used for this is below.
+
+    //Sample vectors along circle centered at origin
+    var dataset = d3.range(numPts).map(function(d){
+    	var out = [];
+    	out[0] = mag*Math.cos(d*(2/numPts)*Math.PI)
+    	out[1] = mag*Math.sin(d*(2/numPts)*Math.PI)
+    	out[2] = d*(2/numPts)*Math.PI;
+    	return out;
+    });
+
+The code makes use of the built-in `d3.range` to generate a sequence of values from `0` to `numPts-1`.  These are then used to sample angles evenly on the interval from $0$ to $ \left( 2 \pi - \frac{1}{numPts} \right)$.  
+
+For each of these values I return an array with 3 elements: the radius of the circle times the cosine of this angle, the radius of the circle times the sine of this angle, and the angle itself. The cosine and sine will be used to draw the initial vectors while the angle will be use to color the vectors. 
+
+### Setting a color map
+
+Since linear transformations can scale, rotate and flip vectors about axes, we want a color scheme that will allow us to observe these changes.  Here we are using a linear color scale with four breakpoints to color vectors roughly according to their initial quadrant membership.
+
+	var colorScale = d3.scale.linear()
+		.domain([(1/4)*Math.PI, (3/4)*Math.PI, (5/4)*Math.PI, (7/4)*Math.PI]) 
+		.range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]);
+
+
+### Initial drawing of the vectors
+
+Similarly to the earlier post on [drawing vectors](axesAndVectors.html)
+
+	//Draw data on svg element
+    svg.selectAll("line")
+    .data(dataset)
+    .enter()
+    .append("line")
+    .attr("x1", function(d) {
+        return xScale(0)
+    })
+    .attr("y1", function(d) {
+        return yScale(0)
+    })
+    .attr("x2", function(d) {
+        return xScale(d[0])
+    })
+    .attr("y2", function(d) {
+        return yScale(d[1])
+    })
+    .attr("stroke-width",2)
+    .attr("stroke", function(d) {
+    	return colorScale(d[2]);
+	});
+
+### Adding a button
+
+I added a button by inserting the following code just above the `div` containing my D3 code.
+
+	<div class="btn-group">
+		<button class="btn-primary" id ="d3Button">Transform</button>
+	</div> 
+
+### Wiring the button up
+
+As it is, the button will not cause any changes when clicked.  We can use D3 to listen and actually do something when the button is clicked. 
+
+On button click, the following code:
+
+1. Reads the text on the button
+1. If the text says "Transform" it applies a transformation matrix to the original data and stores this into `plotData`, then changes the button to read "Reset".
+1. Else if the text says "Reset" it loads the original x and y values back into `plotData`, changes the button to read "Transform" again.
+1. The data in `plotData` is then used to redraw the vectors on the plot.
+
+A `.transition()` is included with `.duration(1000)` to make it more apparent how the data is being changed by the transformation matrix.
+
+	//Do something on button click
+    d3.select("#d3Button").on("click", function() {
+    	var selection = d3.select("#d3Button");
+    	var plotData = [];
+    	if (selection.text()=="Transform") {
+    		plotData = dataset.map(function(d){ 
+    			return matMult(d,transMat);
+    		});
+    		selection.text("Reset");
+    	}
+    	else {
+    		plotData = dataset;
+    		selection.text("Transform");
+    	}
+
+    	// Redraw data
+		svg.selectAll("line")
+		.data(plotData)
+		.transition()
+		.duration(1000)
+	    .attr("x1", function(d) {
+	        return xScale(0)
+	    })
+	    .attr("y1", function(d) {
+	        return yScale(0)
+	    })
+	    .attr("x2", function(d) {
+	        return xScale(d[0])
+	    })
+	    .attr("y2", function(d) {
+	        return yScale(d[1])
+	    })
+    });
+
+**Note:** Since we are trying to show the effect of a transformation matrix on each of the sampled vectors, it is important that the elements in `plotData` are in the same order as those in the original sampled dataset.  This preserves the visual effect of properly projecting each vector.  If the data in `plotData` were scrambled, we would still get a transformation, but the animation and color would lose meaning.
+
+### Applying the transformation matrix
+
+The transformation matrix is applied by simply multiplying the matrix with each of the vectors.  The following function performs this for a 1x2 vector and 2x2 matrix.
+
+    //Define function for matrix multiplication
+    function matMult(v,M){
+    	var out = [];
+    	out[0] = v[0]*M[0][0] + v[1]*M[1][0];
+    	out[1] = v[0]*M[0][1] + v[1]*M[1][1];
+    	return out;
+    }
+
+### Visualization code
+
+The remainder of the undiscussed code has to do with initializing the SVG element and drawing the axes.  More detailed explanations of this are given in the posts ["Drawing Axes and Vectors"](html/axesAndVectors.html) and ["Bivariate Normal Random Samples"](html/plotRandom.html).
+
+ var w = 500;
+    var h = 500;
+    var padding = 50;
+    var yMax = 10, yMin = -10;
+    var xMax = 10, xMin = -10;
+    var numPts = 100;
+    var mag = 3;
+
+    var transMat = [[1, 2],
+    				[-2,-1]];
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([xMin, xMax])
+        .range([padding, w-padding]);
+
+    var yScale = d3.scale.linear()
+        .domain([yMax, yMin])
+        .range([padding, h-padding]);
+
+	var colorScale = d3.scale.linear()
+		.domain([(1/4)*Math.PI, (3/4)*Math.PI, (5/4)*Math.PI, (7/4)*Math.PI]) 
+		.range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]);
+
+    //Sample vectors along circle centered at origin
+    var dataset = d3.range(numPts).map(function(d){
+    	var out = [];
+    	out[0] = mag*Math.cos(d*(2/numPts)*Math.PI)
+    	out[1] = mag*Math.sin(d*(2/numPts)*Math.PI)
+    	out[2] = d*(2/numPts)*Math.PI;
+    	return out;
+    });
+
+	//Draw data on svg element
+    svg.selectAll("line")
+    .data(dataset)
+    .enter()
+    .append("line")
+    .attr("x1", function(d) {
+        return xScale(0)
+    })
+    .attr("y1", function(d) {
+        return yScale(0)
+    })
+    .attr("x2", function(d) {
+        return xScale(d[0])
+    })
+    .attr("y2", function(d) {
+        return yScale(d[1])
+    })
+    .attr("stroke-width",2)
+    .attr("stroke", function(d) {
+    	return colorScale(d[2]);
+	});
+
+    //Do something on button click
+    d3.select("#d3Button").on("click", function() {
+    	var selection = d3.select("#d3Button");
+    	var plotData = [];
+    	if (selection.text()=="Transform") {
+    		plotData = dataset.map(function(d){ 
+    			return matMult(d,transMat);
+    		});
+    		selection.text("Reset");
+    	}
+    	else {
+    		plotData = dataset;
+    		selection.text("Transform");
+    	}
+
+    	// Redraw data
+		svg.selectAll("line")
+		.data(plotData)
+		.transition()
+		.duration(1000)
+	    .attr("x1", function(d) {
+	        return xScale(0)
+	    })
+	    .attr("y1", function(d) {
+	        return yScale(0)
+	    })
+	    .attr("x2", function(d) {
+	        return xScale(d[0])
+	    })
+	    .attr("y2", function(d) {
+	        return yScale(d[1])
+	    })
+    });
+
+    //Define tick values   
+    var tickVals = [-10, -8, -6, -4, -2, 2, 4, 6, 8, 10];
+
+    //Create x axis
+    var xAxis = d3.svg.axis()
+                  .scale(xScale)
+                  .orient("bottom")
+                  .tickValues(tickVals);
+
+    //Create y axis
+    var yAxis = d3.svg.axis()
+                  .scale(yScale)
+                  .orient("left")
+                  .tickValues(tickVals);
+
+	//Add axes to svg
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(0," + (padding + (h-2*padding)/2) + ")")
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(" + (padding + (w-2*padding)/2) + ",0)")
+        .call(yAxis);
+
+    //Style axes
+    svg.selectAll(".axis path, .axis line")
+        .style("fill", "none")
+        .style("stroke","black")
+        .style("shape-rendering","crispEdges");
+
+    svg.selectAll(".axis text")
+        .style("font-family", "sans-serif")
+        .style("font-size", "11px");
+
+    //Define function for matrix multiplication
+    function matMult(v,M){
+    	var out = [];
+    	out[0] = v[0]*M[0][0] + v[1]*M[1][0];
+    	out[1] = v[0]*M[0][1] + v[1]*M[1][1];
+    	return out;
+    }
+
+---
+
+<div class="container">
+    <div class="row">
+        <span class="pull-left">
+        <a class="btn btn-primary" href="http://Ryan-J-Smith.github.io/D3-Examples">Back to Examples</a></span>
+        <span class="pull-right">By [Ryan J. Smith](http://www.ryanjsmith.me), 2015</span>
+    </div>
+</div>
+
+</xmp>
+
+
+<script type="text/x-mathjax-config">
+    MathJax.Hub.Config({ 
+        tex2jax: { 
+            inlineMath: [["$","$"]], 
+            displayMath: [["$$", "$$"]], 
+            processEscapes: true
+        },
+        displayAlign: "center"
+    });
+</script>
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+<script src="../js/strapdown/v/0.2/strapdown.js"></script>
+
+<script type="text/javascript">
+
+    "use strict";
+    /*global d3:false */
+    var w = 500;
+    var h = 500;
+    var padding = 50;
+    var yMax = 10, yMin = -10;
+    var xMax = 10, xMin = -10;
+    var numPts = 100;
+    var mag = 3;
+
+    var transMat = [[1, 2],
+    				[-2,-1]];
+
+    //Create SVG element
+    var svg = d3.select("div#d3Code").append("svg")
+                .attr("style", "outline: thin solid black;")
+                .attr("width", w)
+                .attr("height", h);
+
+    //Define plot scales
+    var xScale = d3.scale.linear()
+        .domain([xMin, xMax])
+        .range([padding, w-padding]);
+
+    var yScale = d3.scale.linear()
+        .domain([yMax, yMin])
+        .range([padding, h-padding]);
+
+	var colorScale = d3.scale.linear()
+		.domain([(1/4)*Math.PI, (3/4)*Math.PI, (5/4)*Math.PI, (7/4)*Math.PI]) 
+		.range(["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]);
+
+    //Sample vectors along circle centered at origin
+    var dataset = d3.range(numPts).map(function(d){
+    	var out = [];
+    	out[0] = mag*Math.cos(d*(2/numPts)*Math.PI)
+    	out[1] = mag*Math.sin(d*(2/numPts)*Math.PI)
+    	out[2] = d*(2/numPts)*Math.PI;
+    	return out;
+    });
+
+	//Draw data on svg element
+    svg.selectAll("line")
+    .data(dataset)
+    .enter()
+    .append("line")
+    .attr("x1", function(d) {
+        return xScale(0)
+    })
+    .attr("y1", function(d) {
+        return yScale(0)
+    })
+    .attr("x2", function(d) {
+        return xScale(d[0])
+    })
+    .attr("y2", function(d) {
+        return yScale(d[1])
+    })
+    .attr("stroke-width",2)
+    .attr("stroke", function(d) {
+    	return colorScale(d[2]);
+	});
+
+    //Do something on button click
+    d3.select("#d3Button").on("click", function() {
+    	var selection = d3.select("#d3Button");
+    	var plotData = [];
+    	if (selection.text()=="Transform") {
+    		plotData = dataset.map(function(d){ 
+    			return matMult(d,transMat);
+    		});
+    		selection.text("Reset");
+    	}
+    	else {
+    		plotData = dataset;
+    		selection.text("Transform");
+    	}
+
+    	// Redraw data
+		svg.selectAll("line")
+		.data(plotData)
+		.transition()
+		.duration(1000)
+	    .attr("x1", function(d) {
+	        return xScale(0)
+	    })
+	    .attr("y1", function(d) {
+	        return yScale(0)
+	    })
+	    .attr("x2", function(d) {
+	        return xScale(d[0])
+	    })
+	    .attr("y2", function(d) {
+	        return yScale(d[1])
+	    })
+    });
+
+    //Define tick values   
+    var tickVals = [-10, -8, -6, -4, -2, 2, 4, 6, 8, 10];
+
+    //Create x axis
+    var xAxis = d3.svg.axis()
+                  .scale(xScale)
+                  .orient("bottom")
+                  .tickValues(tickVals);
+
+    //Create y axis
+    var yAxis = d3.svg.axis()
+                  .scale(yScale)
+                  .orient("left")
+                  .tickValues(tickVals);
+
+   //Add axes to svg
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(0," + (padding + (h-2*padding)/2) + ")")
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("class", "axis")
+        .attr("transform", "translate(" + (padding + (w-2*padding)/2) + ",0)")
+        .call(yAxis);
+
+    //Style axes
+    svg.selectAll(".axis path, .axis line")
+        .style("fill", "none")
+        .style("stroke","black")
+        .style("shape-rendering","crispEdges");
+
+    svg.selectAll(".axis text")
+        .style("font-family", "sans-serif")
+        .style("font-size", "11px");
+
+    //Define function for matrix multiplication
+    function matMult(v,M){
+    	var out = [];
+    	out[0] = v[0]*M[0][0] + v[1]*M[1][0];
+    	out[1] = v[0]*M[0][1] + v[1]*M[1][1];
+    	return out;
+    }
+
+</script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','http://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-61736441-1', 'auto');
+  ga('send', 'pageview');
+</script>
+
+</html>
